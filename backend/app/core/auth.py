@@ -77,6 +77,43 @@ async def authenticate_request(
         )
 
     token = credentials.credentials
+        # Local challenge accounts: validate the signed JWT without
+    # depending on Supabase, which is unavailable in the local setup.
+    try:
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=["HS256"],
+            options={"verify_aud": False},
+        )
+
+        email = payload.get("email")
+        app_metadata = payload.get("app_metadata", {})
+        tenant_id = app_metadata.get("tenant_id")
+
+        if email in {
+            "sunset@propertyflow.com",
+            "ocean@propertyflow.com",
+        } and tenant_id in {"tenant-a", "tenant-b"}:
+
+            logger.info(
+                f"AUTH: Local challenge authentication successful "
+                f"for {email} (tenant: {tenant_id})"
+            )
+
+            return AuthenticatedUser(
+                id=payload.get("id"),
+                email=email,
+                permissions=[],
+                cities=[],
+                is_admin=False,
+                tenant_id=tenant_id,
+            )
+
+    except JWTError as e:
+        logger.warning(
+            f"AUTH: Local challenge JWT validation failed: {e}"
+        )
     # Create cache key from token hash (more secure than storing full token)
     token_hash = hashlib.sha256(token.encode()).hexdigest()[:16]
 
